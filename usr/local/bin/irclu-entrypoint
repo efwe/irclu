@@ -1,0 +1,56 @@
+#!/usr/bin/env sh
+set -eu
+
+AUTHORIZED_KEYS_PATH="/home/irclu/.ssh/authorized_keys"
+LIBERA_SASL_KEY_PATH="/home/irclu/.config/weechat/ecdsa.pem"
+
+if [ -z "${IRCLU_SSH_KEYS:-}" ]; then
+  echo "ERROR: IRCLU_SSH_KEYS is not set." >&2
+  echo "Provide it as a base64-encoded authorized_keys file." >&2
+  exit 2
+fi
+
+mkdir -p /home/irclu/.ssh
+chmod 700 /home/irclu/.ssh
+
+# Pre-create config dirs (useful when /home/irclu is volume-mounted).
+mkdir -p /home/irclu/.config/weechat
+mkdir -p /home/irclu/.config/fish
+chmod 700 /home/irclu/.config
+chmod 700 /home/irclu/.config/weechat
+chmod 700 /home/irclu/.config/fish
+
+# Silence the standard login banner (still shows /etc/motd).
+: > /home/irclu/.hushlogin
+chmod 644 /home/irclu/.hushlogin
+
+# Decode base64 env into key file.
+printf '%s' "$IRCLU_SSH_KEYS" | base64 --decode > "$AUTHORIZED_KEYS_PATH"
+printf '%s' "$IRCLU_LIBERA_SASL_KEY" | base64 --decode > "$LIBERA_SASL_KEY_PATH"
+chmod 600 "$AUTHORIZED_KEYS_PATH"
+chmod 600 "$LIBERA_SASL_KEY_PATH"
+chown -R irclu:irclu /home/irclu/.ssh
+chown -R irclu:irclu /home/irclu/.config
+chown irclu:irclu /home/irclu/.hushlogin
+
+# Start a shared tmux session at container boot with WeeChat in the first window.
+# Users are auto-attached on interactive login via /etc/fish/conf.d/10-tmux.fish.
+if su -l irclu -s /bin/sh -c 'tmux has-session -t irclu 2>/dev/null'; then
+  :
+else
+  # Preserve environment so WeeChat can read ${env:...} variables.
+  # Also set HOME explicitly because `su -p` preserves root HOME by default.
+  su -p irclu -s /bin/sh -c '
+    export HOME=/home/irclu USER=irclu LOGNAME=irclu
+    cd /home/irclu
+      tmux new-session -d -s irclu -n weechat weechat
+  '
+fi
+
+#weechat --run-command "/server addreplace libera irc.libera.chat/6697 -tls -autoconnect; /set irc.server.libera.nicks efwe; /set irc.server.libera.autoconnect on; /set irc.server.libera.autojoin \"#java.de\"; /set irc.server.libera.command_delay 5; /set irc.server.libera.command \"\${if:\${env:IRCLU_NICKSERV_PASS}?/msg NickServ identify efwe \${env:IRCLU_NICKSERV_PASS}:}\"; /set irc.ctcp.libera.version \"AT&T you will (ojnk!)\"; /connect libera; /mute /save"
+# Ensure ssh host keys exist.
+ssh-keygen -A >/dev/null 2>&1 || true
+
+mkdir -p /run/sshd
+
+exec /usr/sbin/sshd -D -e -f /etc/ssh/sshd_config

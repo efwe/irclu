@@ -1,0 +1,27 @@
+# Minimal, key-only sshd config for irclu.
+
+Port 22
+Protocol 2
+
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKey /etc/ssh/ssh_host_rsa_key
+
+UsePAM yes
+
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+ChallengeResponseAuthentication no
+PermitEmptyPasswords no
+
+PubkeyAuthentication yes
+AuthorizedKeysFile .ssh/authorized_keys
+
+AllowUsers irclu
+
+X11Forwarding no
+AllowTcpForwarding no
+PermitTunnel no
+
+PrintMotd no
+LogLevel VERBOSE
