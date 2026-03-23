@@ -18,6 +18,7 @@ RUN apt-get update \
         xh \
         ripgrep \
         ncurses-term \
+        linux-sysctl-defaults \
         iputils-ping \
         whois \
     && ln -snf "/usr/share/zoneinfo/$TZ" /etc/localtime \
